@@ -11,5 +11,4 @@ drf-yasg>=1.21.7
 requests>=2.31
 gunicorn>=21.2
 drf-yasg
-drf_spectacular
 
