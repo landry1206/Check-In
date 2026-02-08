@@ -1,0 +1,15 @@
+Django>=4.2,<5.0
+djangorestframework>=3.14
+django-cors-headers>=4.3
+djangorestframework-simplejwt>=5.3
+psycopg2-binary>=2.9
+python-dotenv>=1.0
+python-decouple>=3.8
+django-filter>=23.5
+django-axes>=6.3
+drf-yasg>=1.21.7
+requests>=2.31
+gunicorn>=21.2
+drf-yasg
+drf_spectacular
+
