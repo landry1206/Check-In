@@ -138,6 +138,11 @@ celerybeat.pid
 .env
 .envrc
 .venv
+__pycache__/
+*.pyc
+db.sqlite3
+.env
+venv/
 env/
 venv/
 ENV/
