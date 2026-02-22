@@ -47,9 +47,12 @@ def login_admin_service(email, password):
     refresh.access_token.set_exp(lifetime=timedelta(hours=1))
 
     return {
-        "id": user.id,
         "access_token": str(refresh.access_token),
         "refresh_token": str(refresh),
+        "user": {
+            "id": str(user.id),
+            "email": user.email,
+        }
     }, 200
 
 def get_all_admins_service():

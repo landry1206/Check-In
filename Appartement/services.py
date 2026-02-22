@@ -14,10 +14,12 @@ def create_apartment_service(user, data):
         description=data["description"],
         city=data["city"],
         country=data["country"],
-        latitude=data["latitude"],
-        longitude=data["longitude"],
+        latitude=float(data["latitude"]),
+        longitude=float(data["longitude"]),
         category=data["category"],
         main_photo=data["main_photo"],
+        price_per_hour=float(data["price_per_hour"]),
+        status=data.get("status", "disponible"),
     )
 
     gallery_urls = data.get("gallery", [])
@@ -31,6 +33,15 @@ def create_apartment_service(user, data):
             apartment=apartment,
             image_url=url
         )
+
+    unavailabilities = data.get("unavailabilities", [])
+    for unavail in unavailabilities:
+        if "start_datetime" in unavail and "end_datetime" in unavail:
+            ApartmentUnavailable.objects.create(
+                apartment=apartment,
+                start_datetime=parse_datetime(unavail["start_datetime"]) if isinstance(unavail["start_datetime"], str) else unavail["start_datetime"],
+                end_datetime=parse_datetime(unavail["end_datetime"]) if isinstance(unavail["end_datetime"], str) else unavail["end_datetime"]
+            )
 
     return {
         "id": apartment.id,
@@ -103,23 +114,25 @@ def get_apartment_detail_service(apartment_id):
         "start_datetime",
         "end_datetime"
     )
-    gallery = apartment.gallery.all().values("image_url")
+    gallery = apartment.gallery.all().values_list("image_url", flat=True)
     status = compute_apartment_status(apartment)
 
     return {
         "id": apartment.id,
+        "creator": str(apartment.creator.id),
         "title": apartment.title,
         "description": apartment.description,
         "latitude": apartment.latitude,
         "country": apartment.country,
         "city": apartment.city,
-        "gallery": list(gallery),
-        "longitude": apartment.longitude,
         "category": apartment.category,
         "main_photo": apartment.main_photo,
-        "creator_email": apartment.creator.email,
         "status": status,
+        "price_per_hour": str(apartment.price_per_hour),
+        "gallery": list(gallery),
+        "longitude": apartment.longitude,
         "unavailabilities": list(unavailabilities),
+        "created_at": apartment.created_at.isoformat() if apartment.created_at else None,
     }, 200
 
 
@@ -167,11 +180,17 @@ def list_apartments_service(params):
         results.append({
             "id": element.id,
             "title": element.title,
+            "description": element.description,
             "category": element.category,
-            "price": element.price_per_hour,
+            "price_per_hour": element.price_per_hour,
+            "status": element.status,
             "city": element.city,
             "country": element.country,
-            "main_photo": element.main_photo
+            "main_photo": element.main_photo,
+            "latitude": element.latitude,
+            "longitude": element.longitude,
+            "creator": element.creator.email if element.creator else "",
+            "created_at": element.created_at.isoformat() if element.created_at else None,
         })
 
     return {
@@ -194,7 +213,6 @@ def reserve_apartment_service(apartment_id, start, end):
     if start >= end:
         return {"error": "Dates invalides"}, 400
 
-    # Vérification chevauchement
     overlap = ApartmentUnavailable.objects.filter(
         apartment=apartment,
         start_datetime__lt=end,
@@ -204,7 +222,6 @@ def reserve_apartment_service(apartment_id, start, end):
     if overlap:
         return {"error": "Appartement non disponible pour cette période"}, 400
 
-    # Création indisponibilité
     ApartmentUnavailable.objects.create(
         apartment=apartment,
         start_datetime=start,
@@ -273,11 +290,33 @@ def update_apartment_service(apartment_id, data, partial=False):
         "longitude",
         "category",
         "main_photo",
+        "price_per_hour",
+        "status",
+        "city",
+        "country",
     ]
 
     for field in allowed_fields:
         if field in data:
             setattr(apartment, field, data[field])
+    if "gallery" in data:
+        urls = data.get("gallery") or []
+        if len(urls) > 3:
+            return {"error": "Maximum 3 images dans la galerie"}, 400
+    
+        apartment.gallery.all().delete()
+        for url in urls:
+            ApartmentGallery.objects.create(apartment=apartment, image_url=url)
+
+    if "unavailabilities" in data:
+        apartment.unavailabilities.all().delete()
+        for unavail in data.get("unavailabilities", []):
+            if "start_datetime" in unavail and "end_datetime" in unavail:
+                ApartmentUnavailable.objects.create(
+                    apartment=apartment,
+                    start_datetime=parse_datetime(unavail["start_datetime"]) if isinstance(unavail["start_datetime"], str) else unavail["start_datetime"],
+                    end_datetime=parse_datetime(unavail["end_datetime"]) if isinstance(unavail["end_datetime"], str) else unavail["end_datetime"]
+                )
 
     apartment.save()
 
@@ -287,3 +326,6 @@ def update_apartment_service(apartment_id, data, partial=False):
     }, 200
 
 
+def delete_apartment_service(apartment):
+    apartment.delete()
+    return {"message": "Appartement supprimé"}, 204
